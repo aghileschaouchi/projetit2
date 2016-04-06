@@ -479,10 +479,64 @@ Automate * mot_to_automate( const char * mot ){
 	return automate;
 }
 
+//cette structure comprend un automate source et un automate de destination pour cree l'union de deux automate, on varie l'automate source selon nos besoins
+
+typedef struct data_union_t {
+    const Automate *automate_source;
+    Automate *automate_union;
+} data_union_t;
+
+void action_union_automate(const intptr_t etat, void* data) {
+    data_union_t *data_union = (data_union_t*) data;
+
+    //si l'etat n'est pas un etat initial dans l'automate source
+    if (!est_dans_l_ensemble(data_union->automate_source->initiaux, etat)) {
+        //ajouter_transition(data_union->automate_union, origine, lettre, fin);
+        ajouter_etat(data_union->automate_union, get_max_etat(data_union->automate_union) + etat); //on l'ajoute dans les etats de l'automate union
+        if (est_dans_l_ensemble(data_union->automate_source->finaux, etat)) //si l'etat est final dans l'automate source
+            ajouter_etat_final(data_union->automate_union, get_max_etat(data_union->automate_union) + etat); //l'etat est final dans l'automate union
+    }
+}
+
+void action_union_automate_transitions(int origine, char lettre, int fin, void* data) {
+    data_union_t *data_union = (data_union_t*) data;
+
+    if (!est_dans_l_ensemble(data_union->automate_source->initiaux, origine)) //si l'etat n'est pas un etat initial dans l'automate source
+        ajouter_transition(data_union->automate_union, origine, lettre, fin); //on ajoute la transition (origine, lettre, fin)
+    else
+        ajouter_transition(data_union->automate_union, 0, lettre, fin); //sinon on ajoute la transition (-1, lettre, fin)
+
+}
+
 Automate * creer_union_des_automates(
-	const Automate * automate_1, const Automate * automate_2
-){
-	A_FAIRE_RETURN( NULL );
+        const Automate * automate_1, const Automate * automate_2
+        ) {
+    Automate * automate_3 = creer_automate(); // on cree un nouveau automate
+
+    //on declare une structure qui comporte un automate source et un automate d union
+    data_union_t data_union;
+    data_union.automate_source = automate_1; //dabbord lautomate source c'est automate_1
+    data_union.automate_union = automate_3;
+
+    //on ajoute un etat initial dans l'automate union
+    ajouter_etat_initial(data_union.automate_union, 0);
+
+    //Pour tout etat de l'automate source excepte ses etats initiaux : on ajoute ces etats a lautomate union
+    //si l'etat ajouté est terminal dans automate_1 ou automate_2 alors il est terminal dans automate_union
+    pour_tout_element(automate_1->etats, action_union_automate, &data_union);
+
+    data_union.automate_source = automate_2; //maintenant l'automate source c'est automate_2
+    pour_tout_element(automate_2->etats, action_union_automate, &data_union);
+
+    data_union.automate_source = automate_1; //l'automate source est automate_1
+    //pour toute transitions de automate_1 on execute action_union_automate_transitions
+    pour_toute_transition(automate_1, action_union_automate_transitions, &data_union);
+
+    data_union.automate_source = automate_2; //l'automate source est automate_2
+    //pour toute transitions de automate_2 on execute action_union_automate_transitions
+    pour_toute_transition(automate_2, action_union_automate_transitions, &data_union);
+
+    return data_union.automate_union;
 }
 
 Ensemble* etats_accessibles( const Automate * automate, int etat ){
