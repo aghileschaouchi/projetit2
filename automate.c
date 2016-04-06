@@ -497,8 +497,29 @@ Automate *automate_accessible( const Automate * automate ){
 	A_FAIRE_RETURN( NULL ); 
 }
 
-Automate *miroir( const Automate * automate){
-	A_FAIRE_RETURN( NULL ); 
+/**
+ * Ajouter une transition à un automate en la renversant
+ * @param origine
+ * @param lettre
+ * @param fin
+ * @param data
+ */
+void action_renverser_transitions(int origine, char lettre, int fin, void* data) {
+    ajouter_transition((Automate*) data, fin, lettre, origine);
+}
+
+Automate *miroir(const Automate * automate) {
+    //Initialiser un nouveau automate
+    Automate* mir = creer_automate();
+
+    //Pour toute transition de "automate": renverser et ajouter la à "mir"
+    pour_toute_transition(automate, action_renverser_transitions, mir);
+
+    //Ajouter les états initiaux de "automate" en tant qu'états finaux à "mir" et vice versa
+    ajouter_elements(automate->initiaux, mir->finaux);
+    ajouter_elements(automate->finaux, mir->initiaux);
+    
+    return mir;
 }
 
 Automate * creer_automate_du_melange(
