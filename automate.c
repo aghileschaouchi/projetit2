@@ -484,10 +484,54 @@ Automate * creer_union_des_automates(
 ){
 	A_FAIRE_RETURN( NULL );
 }
+/*============================ETATS ACCESSIBLES============================*/
 
-Ensemble* etats_accessibles( const Automate * automate, int etat ){
-	A_FAIRE_RETURN( NULL ); 
+struct data_etats_t {
+    const Automate* automate;
+    Ensemble* etats_accessibles;
+    Ensemble* etats_visites;
+    int etat;
+};
+
+//custom headers
+void action_etats_accessibles_directs(int origine, char lettre, int fin, void* data);
+Ensemble* etats_accessibles_recursive(const Automate * automate, int etat, Ensemble* etats_visites);
+
+void action_etats_accessibles_directs(int origine, char lettre, int fin, void* data) {
+    struct data_etats_t *dt = (struct data_etats_t*) data;
+
+    if (dt->etat == origine) {
+        ajouter_element(dt->etats_accessibles, fin);
+
+        if (!est_dans_l_ensemble(dt->etats_visites, fin)) {
+            ajouter_elements(
+                    dt->etats_accessibles,
+                    etats_accessibles_recursive(dt->automate, fin, dt->etats_visites));
+        }
+    }
 }
+
+Ensemble* etats_accessibles_recursive(const Automate * automate, int etat, Ensemble* etats_visites) {
+    Ensemble* ens = creer_ensemble(NULL, NULL, NULL);
+
+    struct data_etats_t data;
+    data.automate = automate;
+    data.etats_accessibles = ens;
+    data.etats_visites = etats_visites;
+    data.etat = etat;
+
+    ajouter_element(etats_visites, etat);
+
+    pour_toute_transition(automate, action_etats_accessibles_directs, &data);
+
+    return ens;
+}
+
+Ensemble* etats_accessibles(const Automate * automate, int etat) {
+    return etats_accessibles_recursive(automate, etat, creer_ensemble(NULL, NULL, NULL));
+}
+
+/*==========================FIN ETATS ACCESSIBLES==========================*/
 
 Ensemble* accessibles( const Automate * automate ){
 	A_FAIRE_RETURN( NULL ); 
@@ -509,15 +553,15 @@ void action_renverser_transitions(int origine, char lettre, int fin, void* data)
 }
 
 Automate *miroir(const Automate * automate) {
-    //Initialiser un nouveau automate
+    //Initialiser un nouvel automate
     Automate* mir = creer_automate();
 
     //Pour toute transition de "automate": renverser et ajouter la à "mir"
     pour_toute_transition(automate, action_renverser_transitions, mir);
 
     //Ajouter les états initiaux de "automate" en tant qu'états finaux à "mir" et vice versa
-    ajouter_elements(automate->initiaux, mir->finaux);
-    ajouter_elements(automate->finaux, mir->initiaux);
+    ajouter_elements(mir->finaux, automate->initiaux);
+    ajouter_elements(mir->initiaux, automate->finaux);
     
     return mir;
 }

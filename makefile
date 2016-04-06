@@ -12,9 +12,9 @@ check: test
 		echo -n "$$i ... "; \
 		eval "$$i" > log 2>&1; \
 		if test $$? -eq 0; then \
-			echo "\033[32mPASS\033[0m"; \
+			echo -e "\033[32mPASS\033[0m"; \
 		else \
-			echo "\033[31mFAIL\033[0m" && echo "" && cat log && echo ""; \
+			echo -e "\033[31mFAIL\033[0m" && echo "" && cat log && echo ""; \
 		fi \
 	done
 
