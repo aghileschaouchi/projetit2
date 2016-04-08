@@ -488,57 +488,113 @@ Automate * creer_union_des_automates(
 
 struct data_etats_t {
     const Automate* automate;
-    Ensemble* etats_accessibles;
-    Ensemble* etats_visites;
+    Ensemble* etats;
     int etat;
 };
 
 //custom headers
 void action_etats_accessibles_directs(int origine, char lettre, int fin, void* data);
-Ensemble* etats_accessibles_recursive(const Automate * automate, int etat, Ensemble* etats_visites);
+void etats_accessibles_recursive(const Automate * automate, int etat, Ensemble* etats_accessibles);
 
 void action_etats_accessibles_directs(int origine, char lettre, int fin, void* data) {
     struct data_etats_t *dt = (struct data_etats_t*) data;
 
-    if (dt->etat == origine) {
-        ajouter_element(dt->etats_accessibles, fin);
-
-        if (!est_dans_l_ensemble(dt->etats_visites, fin)) {
-            ajouter_elements(
-                    dt->etats_accessibles,
-                    etats_accessibles_recursive(dt->automate, fin, dt->etats_visites));
-        }
+    //si l'état est l'origine de la transition et l'état destination n'est pas encore visité
+    if (origine == dt->etat && !est_dans_l_ensemble(dt->etats, fin)) {
+        ajouter_element(dt->etats, fin);
+        
+        //parcourir les états accessibles depuis "fin"
+        etats_accessibles_recursive(dt->automate, fin, dt->etats);
     }
 }
 
-Ensemble* etats_accessibles_recursive(const Automate * automate, int etat, Ensemble* etats_visites) {
-    Ensemble* ens = creer_ensemble(NULL, NULL, NULL);
-
+void etats_accessibles_recursive(const Automate * automate, int etat, Ensemble* etats_accessibles) {
+    //init la structure data
     struct data_etats_t data;
     data.automate = automate;
-    data.etats_accessibles = ens;
-    data.etats_visites = etats_visites;
+    data.etats = etats_accessibles;
     data.etat = etat;
 
-    ajouter_element(etats_visites, etat);
-
+    //parcourir les transitions de l'automate
     pour_toute_transition(automate, action_etats_accessibles_directs, &data);
-
-    return ens;
 }
 
 Ensemble* etats_accessibles(const Automate * automate, int etat) {
-    return etats_accessibles_recursive(automate, etat, creer_ensemble(NULL, NULL, NULL));
+    //créer l'ensemble résultat
+    Ensemble* ens = creer_ensemble(NULL, NULL, NULL);
+    
+    //un état est accessible depuis lui-meme
+    ajouter_element(ens, etat);
+    
+    //parcourir les états depuis "etat"
+    etats_accessibles_recursive(automate, etat, ens);
+    
+    return ens;
 }
 
 /*==========================FIN ETATS ACCESSIBLES==========================*/
 
-Ensemble* accessibles( const Automate * automate ){
-	A_FAIRE_RETURN( NULL ); 
+void action_accessibles(const intptr_t etat, void* data) {
+    struct data_etats_t* dt = (struct data_etats_t*) data;
+    ajouter_elements(dt->etats, etats_accessibles(dt->automate, etat));
+}
+
+Ensemble* accessibles(const Automate * automate) {
+    Ensemble* ens = creer_ensemble(NULL, NULL, NULL);
+
+    struct data_etats_t data;
+    data.automate = automate;
+    data.etats = ens;
+
+    pour_tout_element(automate->initiaux, action_accessibles, &data);
+
+    return ens;
+}
+
+/**
+ * Supprimer les transitions si son origine est un état inaccessible;
+ * ajouter dans le nouvel automate sinon.
+ */
+void action_automate_accessible(int origine, char lettre, int fin, void* data) {
+    struct data_etats_t* dt = (struct data_etats_t*) data;
+
+    if (est_dans_l_ensemble(dt->etats, origine) || est_dans_l_ensemble(dt->etats, fin))
+        return;
+    
+    ajouter_transition((Automate*) dt->automate, origine, lettre, fin);
 }
 
 Automate *automate_accessible( const Automate * automate ){
-	A_FAIRE_RETURN( NULL ); 
+    Automate* result = creer_automate();
+    
+    //l'ensemble des états accessibles depuis les états initiaux
+    Ensemble* etats_accessibles = accessibles(automate);
+    
+    //..et la différence entre celle là et l'esemble des états d' l'automate
+    Ensemble* etats_non_accessibles = creer_difference_ensemble(automate->etats, etats_accessibles);
+    liberer_ensemble(etats_accessibles);
+    
+    //init data structure
+    struct data_etats_t data;
+    data.automate = result;
+    data.etats = etats_non_accessibles;
+    
+    //Parcourir les transitions
+    pour_toute_transition(automate, action_automate_accessible, &data);
+
+    Ensemble* diff = NULL;
+    
+    //ajouter les états initiaux
+    diff = creer_difference_ensemble(automate->initiaux, etats_non_accessibles);
+    ajouter_elements(result->initiaux, diff);
+    liberer_ensemble(diff);
+    
+    //ajouter les états initiaux
+    diff = creer_difference_ensemble(automate->finaux, etats_non_accessibles);
+    ajouter_elements(result->finaux, diff);
+    liberer_ensemble(diff);
+    
+    return result;
 }
 
 /**
