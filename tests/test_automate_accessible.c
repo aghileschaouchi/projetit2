@@ -35,6 +35,8 @@ int test_automate_accessible(){
 
 		Automate * aut = automate_accessible( automate );
 
+                print_automate(aut);
+                
 		TEST(
 			1
 			&& aut
@@ -57,10 +59,43 @@ int test_automate_accessible(){
 	return result;
 }
 
+int test_automate_accessible2(){
+	int result = 1;
+
+	{
+		Automate * automate = creer_automate();
+
+		ajouter_transition( automate, 1, 'b', 1 );
+                ajouter_transition( automate, 1, 'a', 2 );
+		ajouter_transition( automate, 2, 'a', 3 );
+                ajouter_transition( automate, 3, 'a', 4 );
+                
+                ajouter_transition( automate, 4, 'b', 2 );
+                
+                ajouter_etat_initial( automate, 3);
+		ajouter_etat_final( automate, 4);
+
+		Automate * aut = automate_accessible( automate );
+
+                print_automate(aut);
+                
+		TEST(
+			1
+			&& aut
+                        && !est_un_etat_de_l_automate(aut, 1)
+			, result
+		);
+		liberer_automate( aut );
+		liberer_automate( automate );
+	}
+
+	return result;
+}
+
 
 int main(){
 
-	if( ! test_automate_accessible() ){ return 1; };
+	if( ! test_automate_accessible() || !test_automate_accessible2() ){ return 1; };
 
 	return 0;
 	
