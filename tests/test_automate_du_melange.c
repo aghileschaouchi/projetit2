@@ -38,6 +38,8 @@ int test_automate_du_melange(){
 
 		Automate * mela = creer_automate_du_melange( aut1, aut2 );
 		
+                print_automate(mela);
+                
 		TEST(
 			1
 			&& mela

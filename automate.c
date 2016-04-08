@@ -478,7 +478,8 @@ Automate * mot_to_automate( const char * mot ){
 	ajouter_etat_final( automate, size );
 	return automate;
 }
-//cette structure comprend un automate source et un automate de destination pour cree l'union de deux automate, 
+
+//cette structure comprend un automate source et un automate de destination pour creer l'union de deux automates, 
 // on varie l'automate source selon nos besoins
 
 typedef struct data_union_t {
@@ -486,51 +487,63 @@ typedef struct data_union_t {
     Automate *automate_union;
 } data_union_t;
 
-//fonction action qui va crée des etats dans l'automate d'union
+//fonction action qui va créer des etats dans l'automate d'union
+
 void action_union_automate(const intptr_t etat, void* data) {
     data_union_t *data_union = (data_union_t*) data;
     //si l'etat est initial dans l'automate source
     if (est_dans_l_ensemble(data_union->automate_source->initiaux, etat))
         //l'etat est initial dans l'automate union
-        ajouter_etat_initial(data_union->automate_union, etat );
-    //si l'etat est final dans l'automate source
-    else if (est_dans_l_ensemble(data_union->automate_source->finaux, etat)) 
+        ajouter_etat_initial(data_union->automate_union, etat);
+        //si l'etat est final dans l'automate source
+    else if (est_dans_l_ensemble(data_union->automate_source->finaux, etat))
         //l'etat est final dans l'automate union
-        ajouter_etat_final(data_union->automate_union, etat ); 
+        ajouter_etat_final(data_union->automate_union, etat);
     else
-        ajouter_etat(data_union->automate_union, etat );
+        ajouter_etat(data_union->automate_union, etat);
 }
-//fonction action qui va crée les transitions dans l'automate d'union
+/*
+ * fonction action qui va créer les transitions dans l'automate d'union
+ */
 void action_union_automate_transitions(int origine, char lettre, int fin, void* data) {
     data_union_t *data_union = (data_union_t*) data;
-    //toutes transitions dans l'automate_1 ou l'automate_2 sera copier dans l'automate union
+    
+    //toutes transitions dans l'automate_1 ou l'automate_2 seront copiées dans l'automate union
     ajouter_transition(data_union->automate_union, origine, lettre, fin);
 }
 
 Automate * creer_union_des_automates(
         const Automate * automate_1, const Automate * automate_2
         ) {
-    //on crée un nouveau automate
+    //on crée un nouvel automate
     Automate *automate_union = creer_automate();
+    
     //on declare une structure qui comporte un automate source et un automate d'union
     data_union_t data_union;
-    data_union.automate_source = automate_1; //dabbord lautomate source c'est automate_1
+    data_union.automate_source = automate_1; //au début l'automate source est automate_1
     data_union.automate_union = automate_union;
-    //pour tout etat de l'automate_1 on appel la fonction action_union_automate
-    pour_tout_element(automate_1->etats, action_union_automate, &data_union);
-    data_union.automate_source = automate_2;
-    //pour tout etat de l'automate_2 on appel la fonction action_union_automate
-    pour_tout_element(automate_2->etats, action_union_automate, &data_union);
     
-    data_union.automate_source = automate_1;
-    //pour toute transition de l'automate_1 on appel la fonction action_union_automate_transitions
-    pour_toute_transition(automate_1, action_union_automate_transitions, &data_union);
+    //pour tout etat de l'automate_1 on appelle la fonction action_union_automate
+    pour_tout_element(automate_1->etats, action_union_automate, &data_union);
+    
     data_union.automate_source = automate_2;
-    //pour toute transition de l'automate_2 on appel la fonction action_union_automate_transitions
+    
+    //pour tout etat de l'automate_2 on appelle la fonction action_union_automate
+    pour_tout_element(automate_2->etats, action_union_automate, &data_union);
+
+    data_union.automate_source = automate_1;
+    
+    //pour toute transition de l'automate_1 on appelle la fonction action_union_automate_transitions
+    pour_toute_transition(automate_1, action_union_automate_transitions, &data_union);
+    
+    data_union.automate_source = automate_2;
+    
+    //pour toute transition de l'automate_2 on appelle la fonction action_union_automate_transitions
     pour_toute_transition(automate_2, action_union_automate_transitions, &data_union);
- 
+
     return automate_union;
 }
+
 /*============================ETATS ACCESSIBLES============================*/
 
 struct data_etats_t {
@@ -669,9 +682,200 @@ Automate *miroir(const Automate * automate) {
     return mir;
 }
 
-Automate * creer_automate_du_melange(
-	const Automate* automate_1,  const Automate* automate_2
-){
-	A_FAIRE_RETURN( NULL ); 
+/*==========================AUTOMATE MELANGE==========================*/
+
+typedef struct data_melange_t {
+    const Automate* automate_1;
+    const Automate* automate_2;
+    Automate* melange;
+    Table* new_etats;
+    int etat1, etat2;
+    int mel_origine;
+    int lettre;
+} data_melange_t;
+
+typedef struct Cle_couple {
+	int etat1;
+	int etat2;
+} Cle_couple;
+
+int comparer_cle_couple(const Cle_couple *a, const Cle_couple *b) {
+    if (a->etat1 < b->etat1)
+        return -1;
+    if (a->etat1 > b->etat1)
+        return 1;
+    if (a->etat2 < b->etat2)
+        return -1;
+    if (a->etat2 > b->etat2)
+        return 1;
+    
+    return 0;
 }
 
+Cle_couple * copier_cle_couple(const Cle_couple* cle) {
+    	Cle_couple * result = xmalloc( sizeof(Cle) );
+	result->etat1 = cle->etat1;
+        result->etat2 = cle->etat2;
+	return result;
+}
+
+void supprimer_cle_couple(Cle_couple* cle) {
+    xfree(cle);
+}
+
+int get_nom_etat(Table* new_etat, int etat1, int etat2){
+    Cle_couple cle;
+    cle.etat1 = etat1;
+    cle.etat2 = etat2;
+    
+    Table_iterateur it = trouver_table(new_etat, (const intptr_t) &cle);
+    if (iterateur_est_vide(it)){
+        printf("[%d - %d]\n", etat1, etat2);
+        return -1; // element non trouvé
+    }
+    
+    return (int)get_valeur(it);
+}
+
+typedef struct data_boucle_t {
+    int etat;
+    Ensemble* ens2;
+    void* extra_data;
+    void (*action)(int etat1, int etat2, void* data);
+} data_boucle_t;
+
+void action_produit_cartesien2( const intptr_t element, void* data_boucle ){
+    data_boucle_t* dt = (data_boucle_t*) data_boucle;
+    
+    dt->action(dt->etat, element, dt->extra_data);
+}
+
+void action_produit_cartesien1( const intptr_t element, void* data_boucle ){
+    data_boucle_t* dt = (data_boucle_t*) data_boucle;
+    dt->etat = element;
+    
+    pour_tout_element((Ensemble*)dt->ens2, action_produit_cartesien2, dt);
+}
+
+void produit_cartesien(Ensemble* ens1, Ensemble* ens2, void (*action)(int etat1, int etat2, void* data), void* data) {
+    data_boucle_t data_boucle;
+    data_boucle.ens2 = ens2;
+    data_boucle.action = action;
+    data_boucle.extra_data = data;
+
+    pour_tout_element(ens1, action_produit_cartesien1, &data_boucle);
+}
+
+void action_ajouter_new_etat(int etat1, int etat2, void* data) {
+    Cle_couple cle;
+    cle.etat1 = etat1;
+    cle.etat2 = etat2;
+
+    int taille = taille_table((Table*)data);
+    
+    add_table((Table*)data, (intptr_t) & cle, taille);
+}
+
+void action_ajouter_transitions4( const intptr_t etat, void* data ) {
+    data_melange_t* dt = (data_melange_t*)data;
+    
+    int mel_fin = get_nom_etat(dt->new_etats, dt->etat1, etat);
+    ajouter_transition(dt->melange, dt->mel_origine, dt->lettre, mel_fin);
+}
+
+void action_ajouter_transitions3( const intptr_t etat, void* data ) {
+    data_melange_t* dt = (data_melange_t*)data;
+    
+    int mel_fin = get_nom_etat(dt->new_etats, etat, dt->etat2);
+    ajouter_transition(dt->melange, dt->mel_origine, dt->lettre, mel_fin);
+}
+
+void action_ajouter_transitions2( const intptr_t lettre, void* data ){
+    data_melange_t* dt = (data_melange_t*) data;
+    
+    dt->mel_origine = get_nom_etat(dt->new_etats, dt->etat1, dt->etat2);
+    dt->lettre = lettre;
+    
+    Cle cle;
+    cle.lettre = lettre;
+    cle.origine = dt->etat1;
+    
+    Table_iterateur it = trouver_table(dt->automate_1->transitions, (const intptr_t) & cle);
+    if (!iterateur_est_vide(it)){
+        pour_tout_element((Ensemble*)get_valeur(it), action_ajouter_transitions3, dt);
+    }
+    
+    cle.origine = dt->etat2;
+    it = trouver_table(dt->automate_2->transitions, (const intptr_t) & cle);
+    if (!iterateur_est_vide(it)){
+        pour_tout_element((Ensemble*)get_valeur(it), action_ajouter_transitions4, dt);
+    }
+}
+
+void action_ajouter_transitions1(int etat1, int etat2, void* data) {
+    data_melange_t* dt = (data_melange_t*) data;
+    dt->etat1 = etat1;
+    dt->etat2 = etat2;
+    
+    pour_tout_element(dt->automate_1->alphabet, action_ajouter_transitions2, dt);
+    pour_tout_element(dt->automate_2->alphabet, action_ajouter_transitions2, dt);
+}
+
+void my_print_cle(intptr_t cle){
+    Cle_couple* c = (Cle_couple*)cle;
+    printf("Cle: %d - %d\n", c->etat1, c->etat2);
+}
+
+void my_print_valeur(intptr_t valeur){
+    printf("Valeur: %d\n\n", (int)valeur);
+}
+
+void action_ajouter_initiaux(int etat1, int etat2, void* data) {
+    data_melange_t* dt = (data_melange_t*) data;
+    
+    int initial = get_nom_etat(dt->new_etats, etat1, etat2);
+    ajouter_etat_initial(dt->melange, initial);
+}
+
+void action_ajouter_finaux(int etat1, int etat2, void* data) {
+    data_melange_t* dt = (data_melange_t*) data;
+    
+    int final = get_nom_etat(dt->new_etats, etat1, etat2);
+    ajouter_etat_final(dt->melange, final);
+}
+
+Automate * creer_automate_du_melange(
+        const Automate* automate_1, const Automate* automate_2
+        ) {
+    Automate* melange = creer_automate();
+    
+    
+    Table* new_etats = creer_table(
+            (int(*)(const intptr_t, const intptr_t)) comparer_cle_couple,
+            (intptr_t(*)(const intptr_t)) copier_cle_couple,
+            (void(*)(intptr_t)) supprimer_cle_couple
+            );
+    
+    //créer les couples d'états automate_1->etats x automate_2->etats
+    produit_cartesien(automate_1->etats, automate_2->etats, action_ajouter_new_etat, new_etats);
+
+    //...
+    data_melange_t data;
+    data.automate_1 = automate_1;
+    data.automate_2 = automate_2;
+    data.new_etats = new_etats;
+    data.melange = melange;
+    
+    produit_cartesien(automate_1->etats, automate_2->etats, action_ajouter_transitions1, &data);
+    
+    produit_cartesien(automate_1->initiaux, automate_2->initiaux, action_ajouter_initiaux, &data);
+    
+    produit_cartesien(automate_1->finaux, automate_2->finaux, action_ajouter_finaux, &data);
+    
+    print_table(new_etats, my_print_cle, my_print_valeur, "\n");
+    
+    liberer_table(new_etats);
+    
+    return melange;
+}
+/*==========================FIN AUTOMATE MELANGE==========================*/
