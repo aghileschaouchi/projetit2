@@ -23,9 +23,9 @@ checkmemory: test
 		echo -n "$$i ... "; \
 		eval "valgrind --error-exitcode=1 --leak-check=full --errors-for-leak-kinds=definite,indirect,possible $$i" > log 2>&1; \
 		if test $$? -eq 0; then \
-			echo "\033[32mMEMORY PASS\033[0m"; \
+			echo -e "\033[32mMEMORY PASS\033[0m"; \
 		else \
-	        echo "\033[31mMEMORY FAIL\033[0m" && echo "" && cat log && echo ""; \
+	        echo -e "\033[31mMEMORY FAIL\033[0m" && echo "" && cat log && echo ""; \
 	    fi \
 	done
 

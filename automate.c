@@ -33,7 +33,7 @@
 #include <assert.h>
 
 #include <math.h>
-
+int i = 0; // global
 void action_get_max_etat( const intptr_t element, void* data ){
 	int * max = (int*) data;
 	if( *max < element ) *max = element;
@@ -478,11 +478,58 @@ Automate * mot_to_automate( const char * mot ){
 	ajouter_etat_final( automate, size );
 	return automate;
 }
+//cette structure comprend un automate source et un automate de destination pour cree l'union de deux automate, 
+// on varie l'automate source selon nos besoins
+
+typedef struct data_union_t {
+    const Automate *automate_source;
+    Automate *automate_union;
+} data_union_t;
+
+//fonction action qui va crée des etats dans l'automate d'union
+void action_union_automate(const intptr_t etat, void* data) {
+    data_union_t *data_union = (data_union_t*) data;
+    //si l'etat est initial dans l'automate source
+    if (est_dans_l_ensemble(data_union->automate_source->initiaux, etat))
+        //l'etat est initial dans l'automate union
+        ajouter_etat_initial(data_union->automate_union, etat );
+    //si l'etat est final dans l'automate source
+    else if (est_dans_l_ensemble(data_union->automate_source->finaux, etat)) 
+        //l'etat est final dans l'automate union
+        ajouter_etat_final(data_union->automate_union, etat ); 
+    else
+        ajouter_etat(data_union->automate_union, etat );
+}
+//fonction action qui va crée les transitions dans l'automate d'union
+void action_union_automate_transitions(int origine, char lettre, int fin, void* data) {
+    data_union_t *data_union = (data_union_t*) data;
+    //toutes transitions dans l'automate_1 ou l'automate_2 sera copier dans l'automate union
+    ajouter_transition(data_union->automate_union, origine, lettre, fin);
+}
 
 Automate * creer_union_des_automates(
-	const Automate * automate_1, const Automate * automate_2
-){
-	A_FAIRE_RETURN( NULL );
+        const Automate * automate_1, const Automate * automate_2
+        ) {
+    //on crée un nouveau automate
+    Automate *automate_union = creer_automate();
+    //on declare une structure qui comporte un automate source et un automate d'union
+    data_union_t data_union;
+    data_union.automate_source = automate_1; //dabbord lautomate source c'est automate_1
+    data_union.automate_union = automate_union;
+    //pour tout etat de l'automate_1 on appel la fonction action_union_automate
+    pour_tout_element(automate_1->etats, action_union_automate, &data_union);
+    data_union.automate_source = automate_2;
+    //pour tout etat de l'automate_2 on appel la fonction action_union_automate
+    pour_tout_element(automate_2->etats, action_union_automate, &data_union);
+    
+    data_union.automate_source = automate_1;
+    //pour toute transition de l'automate_1 on appel la fonction action_union_automate_transitions
+    pour_toute_transition(automate_1, action_union_automate_transitions, &data_union);
+    data_union.automate_source = automate_2;
+    //pour toute transition de l'automate_2 on appel la fonction action_union_automate_transitions
+    pour_toute_transition(automate_2, action_union_automate_transitions, &data_union);
+ 
+    return automate_union;
 }
 /*============================ETATS ACCESSIBLES============================*/
 
