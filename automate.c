@@ -691,13 +691,20 @@ typedef struct data_melange_t {
     Table* new_etats;
     int etat1, etat2;
     int mel_origine;
-    int lettre;
+    intptr_t lettre;
 } data_melange_t;
 
 typedef struct Cle_couple {
 	int etat1;
 	int etat2;
 } Cle_couple;
+
+typedef struct data_boucle_t {
+	intptr_t etat;
+	Ensemble* ens2;
+	void* extra_data;
+	void (*action)(int etat1, int etat2, void* data);
+} data_boucle_t;
 
 int comparer_cle_couple(const Cle_couple *a, const Cle_couple *b) {
     if (a->etat1 < b->etat1)
@@ -723,6 +730,9 @@ void supprimer_cle_couple(Cle_couple* cle) {
     xfree(cle);
 }
 
+/**
+ * Récupérer le nom d'un état de l'automate de mélange à partir d'un couple (etat1, etat2) des automates sources
+ */
 int get_nom_etat(Table* new_etat, int etat1, int etat2){
     Cle_couple cle;
     cle.etat1 = etat1;
@@ -737,13 +747,6 @@ int get_nom_etat(Table* new_etat, int etat1, int etat2){
     return (int)get_valeur(it);
 }
 
-typedef struct data_boucle_t {
-    int etat;
-    Ensemble* ens2;
-    void* extra_data;
-    void (*action)(int etat1, int etat2, void* data);
-} data_boucle_t;
-
 void action_produit_cartesien2( const intptr_t element, void* data_boucle ){
     data_boucle_t* dt = (data_boucle_t*) data_boucle;
     
@@ -757,6 +760,9 @@ void action_produit_cartesien1( const intptr_t element, void* data_boucle ){
     pour_tout_element((Ensemble*)dt->ens2, action_produit_cartesien2, dt);
 }
 
+/**
+ * Cette fonction permet de parcourir les produits cartésiens de deux ensembles
+ */
 void produit_cartesien(Ensemble* ens1, Ensemble* ens2, void (*action)(int etat1, int etat2, void* data), void* data) {
     data_boucle_t data_boucle;
     data_boucle.ens2 = ens2;
@@ -772,7 +778,9 @@ void action_ajouter_new_etat(int etat1, int etat2, void* data) {
     cle.etat2 = etat2;
 
     int taille = taille_table((Table*)data);
-    
+
+	//ajouter un élément à la table dont la clé est un couple (etat1, etat2)
+	//et la valeur est la taille courante de la table
     add_table((Table*)data, (intptr_t) & cle, taille);
 }
 
@@ -799,12 +807,15 @@ void action_ajouter_transitions2( const intptr_t lettre, void* data ){
     Cle cle;
     cle.lettre = lettre;
     cle.origine = dt->etat1;
-    
+
+	//On cherche les transitions de l'automate_1 dont l'origin est etat1
     Table_iterateur it = trouver_table(dt->automate_1->transitions, (const intptr_t) & cle);
     if (!iterateur_est_vide(it)){
+		//si trouvé, on ajoute une nouvelle transition dans l'automate de mélange
         pour_tout_element((Ensemble*)get_valeur(it), action_ajouter_transitions3, dt);
     }
-    
+
+	//on fait pareillement avec l'atomate_2 et etat2
     cle.origine = dt->etat2;
     it = trouver_table(dt->automate_2->transitions, (const intptr_t) & cle);
     if (!iterateur_est_vide(it)){
@@ -816,63 +827,70 @@ void action_ajouter_transitions1(int etat1, int etat2, void* data) {
     data_melange_t* dt = (data_melange_t*) data;
     dt->etat1 = etat1;
     dt->etat2 = etat2;
-    
+
+	//pour toute lettre de chaque alphabet:
     pour_tout_element(dt->automate_1->alphabet, action_ajouter_transitions2, dt);
     pour_tout_element(dt->automate_2->alphabet, action_ajouter_transitions2, dt);
 }
 
-void my_print_cle(intptr_t cle){
-    Cle_couple* c = (Cle_couple*)cle;
-    printf("Cle: %d - %d\n", c->etat1, c->etat2);
-}
-
-void my_print_valeur(intptr_t valeur){
-    printf("Valeur: %d\n\n", (int)valeur);
-}
-
 void action_ajouter_initiaux(int etat1, int etat2, void* data) {
     data_melange_t* dt = (data_melange_t*) data;
-    
+
+	//récupérer le nom du nouvel état dans le map
     int initial = get_nom_etat(dt->new_etats, etat1, etat2);
+
+	//ajouter cet état comme état initial à l'automate de mélange
     ajouter_etat_initial(dt->melange, initial);
 }
 
 void action_ajouter_finaux(int etat1, int etat2, void* data) {
     data_melange_t* dt = (data_melange_t*) data;
-    
+
+	//récupérer le nom du nouvel état dans le map
     int final = get_nom_etat(dt->new_etats, etat1, etat2);
+
+	//ajouter cet état comme état final à l'automate de mélange
     ajouter_etat_final(dt->melange, final);
 }
 
 Automate * creer_automate_du_melange(
         const Automate* automate_1, const Automate* automate_2
         ) {
+	//créer l'automate résultat
     Automate* melange = creer_automate();
     
-    
+    //créer un map pour gérer les noms d'états du nouvel automate
+	//(etat1, etat2) -> nouveau_nom
     Table* new_etats = creer_table(
             (int(*)(const intptr_t, const intptr_t)) comparer_cle_couple,
             (intptr_t(*)(const intptr_t)) copier_cle_couple,
             (void(*)(intptr_t)) supprimer_cle_couple
             );
     
-    //créer les couples d'états automate_1->etats x automate_2->etats
+    //remplir le map avec les couples d'états automate_1->etats X automate_2->etats
     produit_cartesien(automate_1->etats, automate_2->etats, action_ajouter_new_etat, new_etats);
 
-    //...
+    //init la structure
     data_melange_t data;
     data.automate_1 = automate_1;
     data.automate_2 = automate_2;
     data.new_etats = new_etats;
     data.melange = melange;
-    
+
+	//créer les transitions à partir des automates sources
+	//transition_melange(couple(etat1, etat2), lettre) = {
+	//    couple(transition1(etat1, lettre), etat2),
+	//    couple(etat1, transition2(etat2, lettre)
+	// }
     produit_cartesien(automate_1->etats, automate_2->etats, action_ajouter_transitions1, &data);
-    
+
+	//créer les états initiaux à partir des automates sources
+	//melange->initiaux = automate_1->initiaux X automate_2->initiaux
     produit_cartesien(automate_1->initiaux, automate_2->initiaux, action_ajouter_initiaux, &data);
-    
+
+	//créer les états finaux à partir des automates sources
+	//melange->finaux = automate_1->finaux X automate_2->finaux
     produit_cartesien(automate_1->finaux, automate_2->finaux, action_ajouter_finaux, &data);
-    
-    print_table(new_etats, my_print_cle, my_print_valeur, "\n");
     
     liberer_table(new_etats);
     
