@@ -606,14 +606,14 @@ Ensemble* accessibles(const Automate * automate) {
     data.automate = automate;
     data.etats = ens;
 
+	//Pour tout etat initial: ajouter tous les états accessibles depuis cet état à l'ensemble résultat
     pour_tout_element(automate->initiaux, action_accessibles, &data);
 
     return ens;
 }
 
 /**
- * Supprimer les transitions si son origine est un état inaccessible;
- * ajouter dans le nouvel automate sinon.
+ * ajouter une transition à l'automate si son origine est un état accessible
  */
 void action_automate_accessible(int origine, char lettre, int fin, void* data) {
     struct data_etats_t* dt = (struct data_etats_t*) data;
@@ -639,7 +639,7 @@ Automate *automate_accessible( const Automate * automate ){
     data.automate = result;
     data.etats = etats_non_accessibles;
     
-    //Parcourir les transitions
+    //Parcourir les transitions: ajouter une transition si son origine est un état accessible
     pour_toute_transition(automate, action_automate_accessible, &data);
 
     Ensemble* diff = NULL;
@@ -649,7 +649,7 @@ Automate *automate_accessible( const Automate * automate ){
     ajouter_elements(result->initiaux, diff);
     liberer_ensemble(diff);
     
-    //ajouter les états initiaux
+    //ajouter les états finaux
     diff = creer_difference_ensemble(automate->finaux, etats_non_accessibles);
     ajouter_elements(result->finaux, diff);
     liberer_ensemble(diff);
